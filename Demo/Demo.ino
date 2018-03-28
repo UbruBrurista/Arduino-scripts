@@ -96,7 +96,7 @@ void interpretByte(int lastByte) {
 }
 
 void setup() {
-  pinMode(enable, OUTPUT);
+  pinMode(enable_pin, OUTPUT);
   pinMode(c_motor_pin, OUTPUT);
   pinMode(d_motor_pin, OUTPUT);
   pinMode(interrupt_pin, INPUT);
@@ -105,26 +105,31 @@ void setup() {
   disableMotor();
   
   Serial.begin(4800);
-  while (!Serial) {
-    ; 
-  }
+//  while (!Serial) {
+//    ; 
+//  }
 
   mySerial.begin(9600);
 
   Serial.println("Setup Complete!");
+
+  state = WAIT_FOR_READ;
 }
 
 void loop() { // run over and over
-  if (state == WAIT_FOR_READ && mySerial.available()) {
-    Serial.println("reading");
-    int incomingByte = mySerial.read();
-    if (incomingByte == '\n') {
-      interpretByte(lastByte);
-    } else {
-      lastByte = incomingByte;
+  if (state == WAIT_FOR_READ) {
+    if(mySerial.available()) {
+     // Serial.println("reading");
+      int incomingByte = mySerial.read();
+      if (incomingByte == '\n') {
+       // interpretByte(lastByte);
+      // Serial.println("Interpretting...");
+      } else {
+        lastByte = incomingByte;
+      }
+     // Serial.print("Read byte is: ");
+      Serial.println(incomingByte);
     }
-    Serial.print("Read byte is: ");
-    Serial.println(incomingByte);
   }
   /************************
   Add something like this when you get around to adding the pump or something: 
