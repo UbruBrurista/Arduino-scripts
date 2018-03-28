@@ -75,7 +75,12 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
 void interpretByte(int lastByte) {
   if (lastByte == COMMAND_FULL_CYCLE) {
     state = GO_WORK;
+    /**********************************
+    // Change the next line to something like `next_state = START)PUMP;` when we need to add that 
+    // (you'll need to define START_PUMP too)
+    **********************************/
     next_state = GO_HOME;
+
     goToWork();
 
   } else if (lastByte == COMMAND_GO_WORK) {
@@ -101,7 +106,7 @@ void setup() {
   
   Serial.begin(4800);
   while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
+    ; 
   }
 
   mySerial.begin(9600);
@@ -121,5 +126,13 @@ void loop() { // run over and over
     Serial.print("Read byte is: ");
     Serial.println(incomingByte);
   }
+  /************************
+  Add something like this when you get around to adding the pump or something: 
+    else if (state == START_PUMP) {
+      state = PUMP_IN_PROGRESS; // you'll have to define these variables and startPump;
+      next_state = START_BOILER:
+      startPump();
+    }
+  ************************/
 
 }
