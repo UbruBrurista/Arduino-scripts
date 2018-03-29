@@ -1,14 +1,14 @@
 //initialization state variables
-bool stCycleBrew;
-bool stGrind;
-bool stPrepareToBrew;
-bool stBrew;
-bool stDispose; 
+bool stCycleBrew = false;
+bool stGrind = false;
+bool stPrepareToBrew = false;
+bool stBrew = false;
+bool stDispose = false; 
 
 //action state variables
 bool brewAtHome = true;
-bool brewMoving;
-bool heaterPreheated;
+bool brewMoving = false;
+bool heaterPreheated = false;
 
 //sensor variables
 int grinderState = 6; //LOW
@@ -119,7 +119,7 @@ void loop() { // aka "start"
       if (brewAtHome()) {
         stDispose = false;
         stCycleBrew = false;
-      }
+      }f
     }
   }
   else {
