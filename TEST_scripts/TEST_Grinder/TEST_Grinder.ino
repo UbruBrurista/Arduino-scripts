@@ -36,8 +36,8 @@ int TURN_OFF = 2;
 
 int state = WAIT_FOR_READ;
 
-int current_frequency = 0;
-
+int current_f = 0;
+int max_frequency = .066; // 15Hz
 
 // Control functions
 void turnOn() {
