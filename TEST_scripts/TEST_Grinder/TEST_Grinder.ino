@@ -9,6 +9,10 @@
  *  
  *  **** TO DO: ******
  *  - Add in grinder impulse sensor code.....
+ *  
+ *  
+ *  Below 15 Hz = coffee inside
+ *  Above 15 Hz = no coffee left
  */
 
 // Serial variables
@@ -31,6 +35,9 @@ int TURN_ON = 1;
 int TURN_OFF = 2;
 
 int state = WAIT_FOR_READ;
+
+int current_frequency = 0;
+
 
 // Control functions
 void turnOn() {
