@@ -1,9 +1,14 @@
 #include <SoftwareSerial.h>
-/* TEST: GRINDER
+/*  NOT COMPLETE!!!!!!
+ *  
+ *  TEST: GRINDER
  *  1: Turn on
  *  2: Turn off
  *  
  *  ENABLE PIN: PIN 9
+ *  
+ *  **** TO DO: ******
+ *  - Add in grinder impulse sensor code.....
  */
 
 // Serial variables
@@ -12,6 +17,10 @@ int lastByte = 0;
 
 int COMMAND_ON = 1;
 int COMMAND_OFF = 2;
+
+// Sensor Variables
+int grinderImp = A0; // analog, grinder sensor
+
 
 // Grinder Variables
 int enable_pin = 9;
@@ -48,6 +57,9 @@ void interpretByte(int lastByte) {
 
 void setup() {
   pinMode(enable_pin, OUTPUT);
+
+  pinMode(grinderImp, INPUT);
+
 
   turnOff();
   
