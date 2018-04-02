@@ -1,7 +1,7 @@
 #include <SoftwareSerial.h>
 
 // Serial variables
-SoftwareSerial mySerial(6, 7); // RX, TX
+SoftwareSerial mySerial(8, 9); // RX, TX
 int lastByte = 0;
 
 int COMMAND_FULL_CYCLE = 1;
@@ -102,7 +102,7 @@ void setup() {
   pinMode(interrupt_pin, INPUT);
   attachInterrupt(digitalPinToInterrupt(2), disableMotorAfterOneCycle, FALLING);
 
-  disableMotor();
+//  disableMotor();
   
   Serial.begin(4800);
 //  while (!Serial) {
@@ -127,8 +127,8 @@ void loop() { // run over and over
       } else {
         lastByte = incomingByte;
       }
-     // Serial.print("Read byte is: ");
-      Serial.println(incomingByte);
+      Serial.print("Read byte is: ");
+      Serial.println(incomingByte, DEC);
     }
   }
   /************************
