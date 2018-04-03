@@ -6,7 +6,7 @@ int last_interrupt_time = 0;
 // Serial variables
 SoftwareSerial mySerial(8, 9); // RX, TX
 int lastByte = 0;
-
+// Serial state variables
 int COMMAND_FULL_CYCLE = 1;
 int COMMAND_GO_HOME = 2;
 int COMMAND_GO_WORK = 3;
@@ -20,18 +20,18 @@ int d_motor_pin = 12;
 
 // Interrupt Variables
 int interrupt_pin = 2;
-int debounce_delay = 100;
-int count = 0;
 
 // Other pins
-int grinderPin = 6;
+int grinderEnable = 6;
 int pumpEnable = 5;
 int flowPin = 0;
 int hallPin = 1;
-int flowCount = 0;
-int grinderCount = 0;
 int disablePin = 3;
 int waterLevelPin = 13;
+
+//count variables
+int flowCount = 0;
+int grinderCount = 0;
 
 //state variables
 int WAIT_FOR_READ = 0;
@@ -41,6 +41,7 @@ int PUMP = 3;
 int GO_HOME = 4;
 int BU_WORK = 5;
 int BU_HOME = 6;
+int PREHEATING = 7;
 
 int grinderLimit = 150;
 int flowLimit = 200;
@@ -58,7 +59,7 @@ void runGrinder() {
   grinderCount = 0;
   state = GRIND;
   next_state = GO_WORK;
-  digitalWrite(grinderPin, HIGH);
+  digitalWrite(grinderEnable, HIGH);
 }
 
 void grinderChange() {
@@ -69,21 +70,14 @@ void grinderChange() {
   Serial.println(grinderCount);
 
   if (grinderCount >= grinderLimit) {
-    digitalWrite(grinderPin, LOW);
-  
-    //if (state == WAIT_FOR_READ) {
-    //  return;
-    //}
-    
-    //if (state == GRIND) {
-      for (int i =0; i<7000; i++) {
-        Serial.println(i);
-      }
-      state = GO_WORK;
-      next_state = PUMP;
-      //delay(3000);
-      goToWork();
-    //}
+    digitalWrite(grinderEnable, LOW);
+    for (int i =0; i<7000; i++) {
+      Serial.println(i);
+    }
+    state = GO_WORK;
+    next_state = PUMP;
+    goToWork();
+
   }
 }
 
@@ -94,7 +88,6 @@ void goToWork() {
   Serial.print("goToWork: state is: ");
   Serial.println(state);
   Serial.println("going to work");
-  //noInterruptUntil = millis() + 1000;
   digitalWrite(c_motor_pin, HIGH);
   digitalWrite(d_motor_pin, LOW);
   digitalWrite(enable_pin, HIGH);
@@ -114,7 +107,6 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
     if (state == GO_WORK) {
       if (next_state == PUMP) {
         bu_state = BU_WORK;
-        //disableAll();
         for (int j =0; j<7000; j++) {
           Serial.println(j);
         }
@@ -126,7 +118,6 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
     } else if (state == GO_HOME) {
       if (next_state == WAIT_FOR_READ) {
         bu_state = BU_HOME;
-        //disableAll();
         state = WAIT_FOR_READ;
         next_state = -1;
       }
@@ -154,19 +145,12 @@ void flowChange() {
 
   if (flowCount >= flowLimit) {
     digitalWrite(pumpEnable, LOW);
-    //if (state == WAIT_FOR_READ) {
-    //  return;
-    //}
-    
-    //if (next_state == GO_HOME) {
-      //delay(3000);
-      for (int k =0; k<10000; k++) {
-        Serial.println(k);
-      }
-      state = GO_HOME;
-      next_state = WAIT_FOR_READ;
-      goToHome();
-    //}
+    for (int k =0; k<10000; k++) {
+      Serial.println(k);
+    }
+    state = GO_HOME;
+    next_state = WAIT_FOR_READ;
+    goToHome();
   }
 }
 
@@ -201,7 +185,7 @@ void disableAll() {
   digitalWrite(enable_pin, LOW);
   digitalWrite(c_motor_pin, LOW);
   digitalWrite(d_motor_pin, LOW);
-  digitalWrite(grinderPin, LOW);
+  digitalWrite(grinderEnable, LOW);
   digitalWrite(pumpEnable, LOW);
 }
 
@@ -239,7 +223,7 @@ void setup() {
   pinMode(enable_pin, OUTPUT);
   pinMode(c_motor_pin, OUTPUT);
   pinMode(d_motor_pin, OUTPUT);
-  pinMode(grinderPin, OUTPUT);
+  pinMode(grinderEnable, OUTPUT);
   pinMode(pumpEnable, OUTPUT);
   pinMode(interrupt_pin, INPUT);
   pinMode(waterLevelPin, INPUT);
@@ -276,7 +260,7 @@ void loop() { // run over and over
   if (state == WAIT_FOR_READ && mySerial.available()) {
     int incomingByte = mySerial.read();
     Serial.print("Read byte is: ");
-    Serial.println(incomingByte);
+    Serial.println(incomingByte, DEC);
     interpretByte(incomingByte);
   } 
   /*else if (state == PUMP) {
