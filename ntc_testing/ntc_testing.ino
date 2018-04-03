@@ -17,6 +17,7 @@ float analogVolts;
 float e = 2.7182;
 float temp;
 
+bool preheating = false;
 bool heating = false;
 
 //equations
@@ -32,30 +33,28 @@ void runPump() {
 }
 
 void runBoiler_preheat() {
-  delay(2);
+  //delay(1);
   digitalWrite(boilerPin, HIGH);
-  delay(1);
+  delayMicroseconds(10);
   digitalWrite(boilerPin, LOW);
- 
   Serial.println("runBoiler_preheat");
 }
 
 void runBoiler_maintain() {
-  //delay(3);
-  delay(3);
+  //delay(1);
   digitalWrite(boilerPin, HIGH);
-  //delay(0.1);
-  delay(2);
+  delayMicroseconds(6500);
   digitalWrite(boilerPin, LOW);
- 
   Serial.println("runBoiler_maintain");
 }
 
-void setHeatingTrue() {
-    heating = true;
+void setPreheating() {
+    heating = false;
+    preheating = true;
 }
 
 void disableAll() {
+  preheating = false;
   heating = false;
   digitalWrite(pumpPin, LOW);
   digitalWrite(boilerPin, LOW);
@@ -63,6 +62,8 @@ void disableAll() {
 }
 
 void disableBoiler() {
+  heating = false;
+  preheating = false;
   digitalWrite(boilerPin, LOW);
   Serial.println("disable boiler");
 }
@@ -80,10 +81,9 @@ void setup() {
   digitalWrite(pumpPin, LOW);
 
   attachInterrupt(digitalPinToInterrupt(disableButton), disableAll, FALLING);
-  attachInterrupt(digitalPinToInterrupt(boilerButton), setHeatingTrue, FALLING);
+  attachInterrupt(digitalPinToInterrupt(boilerButton), setPreheating, FALLING);
   attachInterrupt(digitalPinToInterrupt(pumpButton), runPump, FALLING);
 
-  heating = true;
   disableAll();
 
   Serial.begin(9600);
@@ -101,35 +101,38 @@ void loop() {
 
   temp = get_temp(R2);
 
-  Serial.print(80);
-  Serial.print(",");
   Serial.print(85);
+  Serial.print(",");
+  Serial.print(90);
   Serial.print(",");
   Serial.println(temp);
 
-  if (heating) {
-    
+  if (preheating) {
     if (digitalRead(boilerRead) == LOW) {
-      if (temp < 80) {
-        runBoiler_preheat();
+      runBoiler_preheat();
+      if (temp >= 85) {
+        preheating = false;
+        heating = true;
       }
-      else if (temp > 80 && temp < 85) {
-        runPump();
-        runBoiler_maintain();
-        //runBoiler_preheat();
-      }
-      else if (temp >= 85) {
+    }
+  }
+
+  else if (heating) {
+    if (digitalRead(boilerRead) == LOW) {
+      runPump();
+      runBoiler_maintain();
+      if (temp >= 90) {
         disableBoiler();
       }
     }
     
   }
 
-  if (temp >= 85) {
+  if (temp >= 90) {
     disableBoiler();
   }
 
-  delay(16.6);
+  delay(7);
   /*
   digitalWrite(boilerPin, HIGH);
   delay(5);
