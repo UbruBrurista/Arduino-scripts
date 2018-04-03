@@ -208,27 +208,36 @@ void disableAll() {
 void interpretByte(int lastByte) {
   Serial.print("Interpreting byte: ");
   Serial.println(lastByte);
+  // Run full cycle
   if (lastByte == COMMAND_FULL_CYCLE) {
     state = GRIND;
     next_state = GO_WORK;
     runGrinder();
 
-  } else if (lastByte == COMMAND_GO_WORK) {
+  }
+  // Go to work
+  else if (lastByte == COMMAND_GO_WORK) {
     //state = GO_WORK;
     //next_state = WAIT_FOR_READ;
     goToWork_Manual();
 
-  } else if (lastByte == COMMAND_GO_HOME) {
+  }
+  //Go to home
+  else if (lastByte == COMMAND_GO_HOME) {
     //state = GO_HOME;
     //next_state = WAIT_FOR_READ;
     goToHome_Manual();
     
-  } else if (lastByte == COMMAND_GRIND) {
+  }
+  // Run grinder
+  else if (lastByte == COMMAND_GRIND) {
     //state = GRIND;
     //next_state = WAIT_FOR_READ;
     runGrinder();
     
-  } else if (lastByte == COMMAND_PUMP) {
+  }
+  // Run pump
+  else if (lastByte == COMMAND_PUMP) {
     //state = PUMP;
     //next_state = WAIT_FOR_READ;
     runPump();
@@ -276,7 +285,7 @@ void loop() { // run over and over
   if (state == WAIT_FOR_READ && mySerial.available()) {
     int incomingByte = mySerial.read();
     Serial.print("Read byte is: ");
-    Serial.println(incomingByte);
+    Serial.println(incomingByte, DEC);
     interpretByte(incomingByte);
   } 
   /*else if (state == PUMP) {
