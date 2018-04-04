@@ -282,7 +282,7 @@ void disableAll() {
   digitalWrite(d_motor_pin, LOW);
   digitalWrite(grinderEnable, LOW);
   digitalWrite(pumpEnable, LOW);
-  digitalWrite(boilerEnable, LOW);
+  disableBoiler();
   state = WAIT_FOR_READ;
 }
 
