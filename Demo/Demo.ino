@@ -1,4 +1,7 @@
 #include <SoftwareSerial.h>
+//#include <TimerOne.h>
+
+//TimerOne timer1;
 
 int wait_delay = 1000;
 long motor_start = 0;
@@ -39,9 +42,9 @@ int grinderCount = 0;
 
 //heating variables
 float NTC_sensorVal;
-float R1 = 32400.0; //potentiometer value
-float R2; // actually 32.4k in our ckt
-float Vref = 5.0;
+float R1 = 32400.0; //resistor value on PCB
+float R2; // NTC resistor value
+float Vref = 5.0; // voltage from PowerSupply PCB
 float analogVolts;
 float e = 2.7182;
 float temp;
@@ -60,6 +63,7 @@ int BU_HOME = 7;
 int HEATING = 8;
 int DISPOSE = 9;
 
+// Grinder and Flowmeter interrupt limits
 int grinderLimit = 150;
 int flowLimit = 200;
 
@@ -108,7 +112,7 @@ void runGrinder() {
   Serial.print("State is: ");
   Serial.println(state);
   Serial.println("grinding");
-  preheating = false;
+  //preheating = false;
   grinderCount = 0;
   state = GRIND;
   next_state = GO_WORK;
@@ -127,17 +131,13 @@ void grinderChange() {
     for (int i =0; i<7000; i++) {
       Serial.println(i);
     }
-    state = GO_WORK;
-    next_state = PUMP;
     goToWork();
-
   }
 }
 
 void goToWork() {
   state = GO_WORK;
   next_state = PUMP;
-  delay(2000);
   Serial.print("goToWork: state is: ");
   Serial.println(state);
   Serial.println("going to work");
@@ -165,8 +165,8 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
           for (int j =0; j<7000; j++) {
             Serial.println(j);
           }
-          state = PUMP;
-          next_state = GO_HOME;
+          //state = PUMP;
+          //next_state = GO_HOME;
           runPump();
         }
 //        else if (next_state == GO_HOME) {
@@ -194,12 +194,12 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
 void runPump() {
   state = PUMP;
   next_state = GO_HOME;
-  delay(3000);
+  //delay(3000);
   Serial.print("runPump: state is: ");
   Serial.println(state);
   Serial.println("pumping");
   setHeating();
-  heating = true;
+  //heating = true;
   flowCount = 0;
   digitalWrite(pumpEnable, HIGH);
 }
@@ -251,7 +251,7 @@ void flowChange() {
 void goToHome() {
   state = GO_HOME;
   next_state = WAIT_FOR_READ;
-  delay(2000);
+  //delay(2000);
   Serial.print("goToHome: state is: ");
   Serial.println(state);
   Serial.println("going home");
@@ -284,6 +284,10 @@ void disableAll() {
   digitalWrite(pumpEnable, LOW);
   disableBoiler();
   state = WAIT_FOR_READ;
+}
+
+void boilerInterrupt() {
+  Serial.println("boilerInterrupt");
 }
 
 void interpretByte(int lastByte) {
@@ -339,6 +343,8 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(flowPin), flowChange, FALLING);
   attachInterrupt(digitalPinToInterrupt(disablePin), disableAll, FALLING);
 
+  //timer1.attachInterrupt(boilerInterrupt, 7000);
+
   disableAll();
   
   Serial.begin(4800);
@@ -350,6 +356,12 @@ void setup() {
   Serial.println(mySerial.available());
 
   Serial.println("Setup Complete!");
+
+  interpretByte(1);
+  //runGrinder();
+  //goToWork();
+  //goToHome();
+  //runPump();
 }
 
 void loop() { // run over and over
@@ -372,17 +384,16 @@ void loop() { // run over and over
     Serial.println(temp);
 
     if (preheating) {
-    if (digitalRead(boilerRead) == LOW) {
-      runBoiler_preheat();
-      if (temp >= 85) {
-        disableBoiler();
-        state = GRIND;
-        next_state = GO_WORK;
-        runGrinder();
+      if (digitalRead(boilerRead) == LOW) {
+        runBoiler_preheat();
+        if (temp >= 85) {
+          disableBoiler();
+          state = GRIND;
+          next_state = GO_WORK;
+          runGrinder();
+        }
       }
-    }
-    }
-  
+    }  
     else if (heating) {
       if (digitalRead(boilerRead) == LOW) {
         runBoiler_maintain();
@@ -390,21 +401,21 @@ void loop() { // run over and over
           disableBoiler();
         }
       }
-      
     }
   
     if (temp >= 90) {
       disableBoiler();
     }
-  
+    
     delay(7);
- }
+  }
   
   if(digitalRead(waterLevelPin) == LOW) {
     //Serial.println("You have enough water");
   }
   
   if (digitalRead(waterLevelPin) == HIGH) {
+    Serial.println("Add Water");
     disableAll();
     state = WAIT_FOR_READ;
     next_state = WAIT_FOR_READ;
