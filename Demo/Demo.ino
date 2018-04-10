@@ -1,7 +1,4 @@
 #include <SoftwareSerial.h>
-//#include <TimerOne.h>
-
-//TimerOne timer1;
 
 int wait_delay = 1000;
 long motor_start = 0;
@@ -17,23 +14,30 @@ int COMMAND_GO_WORK = 3;
 int COMMAND_GRIND = 4;
 int COMMAND_PUMP = 5;
 
+// Communication
+int pulse_pin = 20;
+int start_stop_pin = 21;
+
+int pulse_count = 0;
+bool pulse_started = false;
+
 // Brew Unit Variables
 int enable_pin = 10;
 int c_motor_pin = 11;
 int d_motor_pin = 12;
 
 // Interrupt Variables
-int interrupt_pin = 2;
+int interrupt_pin = 18;
 
 // Other pins
 int grinderEnable = 6;
 int pumpEnable = 5;
-int boilerEnable = 4;
-int flowPin = 0;
-int hallPin = 1;
-int disablePin = 3;
-int boilerRead = 13;
-int waterLevelPin = 7;
+int boilerEnable = 4; // pin 2 on PCB
+int flowPin = 2;
+int hallPin = 3;
+int disablePin = 19;
+int boilerRead = 13; // pin 13 on PCB as well
+int waterLevelPin = 14;
 int NTC_sensorPin = A0;
 
 //count variables
@@ -50,6 +54,9 @@ float e = 2.7182;
 float temp;
 bool preheating = false;
 bool heating = false;
+int lower_limit = 85;
+int upper_limit = 88;
+int boiler_flow_count = 0;
 
 //state variables
 int WAIT_FOR_READ = 0;
@@ -85,10 +92,15 @@ void read_NTC() {
 }
 
 void disableBoiler() {
+  digitalWrite(boilerEnable, LOW);
+  Serial.println("disabling boiler");
+}
+
+void disableBoiler_afterCycle() {
   heating = false;
   preheating = false;
   digitalWrite(boilerEnable, LOW);
-  Serial.println("disable boiler");
+  Serial.println("disable boiler after cycle");
 }
 
 void setPreheating() {
@@ -103,9 +115,22 @@ void setHeating() {
 
 void runBoiler_preheat() {
   digitalWrite(boilerEnable, HIGH);
-  delayMicroseconds(10);
+  delay(6);
   digitalWrite(boilerEnable, LOW);
   Serial.println("runBoiler_preheat");
+}
+
+void runBoiler_maintain() {
+  if (temp < 80  && flowCount % 2 == 0) {
+    digitalWrite(boilerEnable, HIGH);
+    //delayMicroseconds(6500);
+    delayMicroseconds(16000);
+    digitalWrite(boilerEnable, LOW);
+    Serial.println("runBoiler_maintain");
+  }
+  else if (flowCount % 1 == 1) {
+    disableBoiler_afterCycle();
+  }
 }
 
 void runGrinder() {
@@ -128,7 +153,7 @@ void grinderChange() {
 
   if (grinderCount >= grinderLimit) {
     digitalWrite(grinderEnable, LOW);
-    for (int i =0; i<7000; i++) {
+    for (int i =0; i<200; i++) {
       Serial.println(i);
     }
     goToWork();
@@ -162,11 +187,11 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
       if (state == GO_WORK) {
         if (next_state == PUMP) {
           bu_state = BU_WORK;
-          for (int j =0; j<7000; j++) {
+          for (int j =0; j<200; j++) {
             Serial.println(j);
           }
-          //state = PUMP;
-          //next_state = GO_HOME;
+          state = PUMP;
+          next_state = GO_HOME;
           runPump();
         }
 //        else if (next_state == GO_HOME) {
@@ -204,42 +229,53 @@ void runPump() {
   digitalWrite(pumpEnable, HIGH);
 }
 
-void runBoiler_maintain() {
-  if (temp < 90 && flowCount % 2 == 0) {
-    digitalWrite(boilerEnable, HIGH);
-    //delayMicroseconds(6500);
-    delayMicroseconds(16000);
-    digitalWrite(boilerEnable, LOW);
-    Serial.println("runBoiler_maintain");
-  }
-  else if (flowCount % 1 == 1) {
-    disableBoiler();
-  }
-}
-
 void flowChange() {
   Serial.print("State is: ");
   Serial.println(state);
   flowCount++;
+  boiler_flow_count++;
   Serial.print("Flow count: ");
   Serial.println(flowCount);
 
   read_NTC();
 
-  Serial.print("85,90,");
+  Serial.print(lower_limit);
+  Serial.print(",");
+  Serial.print(upper_limit);
+  Serial.print(",");
   Serial.println(temp);
 
   Serial.println(heating);
   Serial.println(digitalRead(boilerRead));
 
-  if (digitalRead(boilerRead) == LOW) {
-    runBoiler_maintain();
+  //if (digitalRead(boilerRead) == LOW) {
+  //  runBoiler_maintain();
+  //}
+
+//   if (digitalRead(boilerRead) == LOW) {
+//    runBoiler_maintain();
+//    }
+
+  if (state == 4 && next_state == 5) {
+    if (temp >= upper_limit) {
+      disableBoiler();
+    }
+    
+    if (boilerEnable == HIGH) {
+      digitalWrite(boilerEnable, LOW);
+    }
+    else {
+      if (boiler_flow_count >= 1 && temp < upper_limit) {
+        digitalWrite(boilerEnable, HIGH);
+        boiler_flow_count = 0;
+      }
+    }
   }
 
   if (flowCount >= flowLimit) {
     digitalWrite(pumpEnable, LOW);
-    disableBoiler();
-    for (int k =0; k<10000; k++) {
+    disableBoiler_afterCycle();
+    for (int k =0; k<100; k++) {
       Serial.println(k);
     }
     state = GO_HOME;
@@ -282,7 +318,7 @@ void disableAll() {
   digitalWrite(d_motor_pin, LOW);
   digitalWrite(grinderEnable, LOW);
   digitalWrite(pumpEnable, LOW);
-  disableBoiler();
+  disableBoiler_afterCycle();
   state = WAIT_FOR_READ;
 }
 
@@ -328,6 +364,42 @@ void interpretByte(int lastByte) {
   }
 }
 
+void start_stop_pulse() {
+  if (pulse_started) {
+    Serial.println("STOP DETECTED");
+    doneReading();
+  } else {
+    Serial.println("START DETECTED");
+    waitForRead();
+  }
+}
+
+void count_pulse() {
+  pulse_count++;
+  Serial.print("C: ");
+  Serial.println(pulse_count);
+}
+
+void doneReading() {
+  pulse_started = false;
+  detachInterrupt(digitalPinToInterrupt(pulse_pin));
+  Serial.println("Interpreting Byte ");
+  //Serial.println(pulse_count);
+  //Serial.print("pulse_started = ");
+  //Serial.println(pulse_started);
+  interpretByte(pulse_count);
+ 
+}
+
+void waitForRead() {
+  //Serial.println("waiting for read, pulse_count = ");
+  pulse_started = true;
+  pulse_count = 0;
+  //Serial.println(pulse_count);
+  pinMode(pulse_pin, INPUT);
+  attachInterrupt(digitalPinToInterrupt(pulse_pin), count_pulse, RISING);
+}
+
 void setup() {
   pinMode(enable_pin, OUTPUT);
   pinMode(c_motor_pin, OUTPUT);
@@ -338,12 +410,13 @@ void setup() {
   pinMode(interrupt_pin, INPUT);
   pinMode(waterLevelPin, INPUT);
   pinMode(boilerRead, INPUT);
+  pinMode(start_stop_pin, INPUT);
+
   attachInterrupt(digitalPinToInterrupt(interrupt_pin), disableMotorAfterOneCycle, FALLING);
   attachInterrupt(digitalPinToInterrupt(hallPin), grinderChange, FALLING);
   attachInterrupt(digitalPinToInterrupt(flowPin), flowChange, FALLING);
   attachInterrupt(digitalPinToInterrupt(disablePin), disableAll, FALLING);
-
-  //timer1.attachInterrupt(boilerInterrupt, 7000);
+  attachInterrupt(digitalPinToInterrupt(start_stop_pin), start_stop_pulse, RISING);
 
   disableAll();
   
@@ -357,16 +430,18 @@ void setup() {
 
   Serial.println("Setup Complete!");
 
-  interpretByte(1);
-  //runGrinder();
-  //goToWork();
-  //goToHome();
-  //runPump();
+ //interpretByte(1);
+ //runGrinder();
+ //goToWork();
+ //goToHome();
+ //runPump();
+ // waitForRead();
+
 }
 
 void loop() { // run over and over
 
-  if (preheating || heating) {
+  if (preheating) {
     NTC_sensorVal = analogRead(NTC_sensorPin);
   
     analogVolts = (float)NTC_sensorVal*Vref/1023.0;
@@ -377,37 +452,38 @@ void loop() { // run over and over
 
     temp = get_temp(R2);
   
-    Serial.print(85);
+    Serial.print(lower_limit);
     Serial.print(",");
-    Serial.print(90);
+    Serial.print(upper_limit);
     Serial.print(",");
     Serial.println(temp);
 
     if (preheating) {
       if (digitalRead(boilerRead) == LOW) {
         runBoiler_preheat();
-        if (temp >= 85) {
-          disableBoiler();
+        if (temp >= lower_limit) {
+          preheating = false;
+          disableBoiler_afterCycle();
           state = GRIND;
           next_state = GO_WORK;
           runGrinder();
         }
       }
     }  
-    else if (heating) {
-      if (digitalRead(boilerRead) == LOW) {
-        runBoiler_maintain();
-        if (temp >= 90) {
-          disableBoiler();
-        }
-      }
-    }
+//    else if (heating) {
+//      if (digitalRead(boilerRead) == LOW) {
+//        runBoiler_maintain();
+//        if (temp >= upper_limit) {
+//          disableBoiler();
+//        }
+//      }
+//    }
   
-    if (temp >= 90) {
-      disableBoiler();
+    if (temp >= upper_limit) {
+      disableBoiler;
     }
     
-    delay(7);
+    //delay(5);
   }
   
   if(digitalRead(waterLevelPin) == LOW) {
