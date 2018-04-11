@@ -374,6 +374,24 @@ void start_stop_pulse() {
   }
 }
 
+void start_uart() {
+  Serial.println("STARTING UART");
+  detachInterrupt(digitalPinToInterrupt(pulse_pin));
+  pulse_count = 0;
+  delay(10);
+
+  int i = 0;
+  for (i = 0; i < 8; i++) {
+    delay(20);
+    int read = digitalRead(pulse_pin);
+    pulse_count = (pulse_count << 1) + read;
+    Serial.print(read);
+  }
+  Serial.println("")
+  Serial.println(pulse_count);
+
+}
+
 void count_pulse() {
   pulse_count++;
   Serial.print("C: ");
@@ -397,7 +415,7 @@ void waitForRead() {
   pulse_count = 0;
   //Serial.println(pulse_count);
   pinMode(pulse_pin, INPUT);
-  attachInterrupt(digitalPinToInterrupt(pulse_pin), count_pulse, RISING);
+  attachInterrupt(digitalPinToInterrupt(pulse_pin), start_uart, RISING);
 }
 
 void setup() {
