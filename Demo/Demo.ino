@@ -379,8 +379,10 @@ void start_stop_pulse() {
 void start_uart() {
   detachInterrupt(digitalPinToInterrupt(pulse_pin));
   Serial.println("STARTING UART");
+  Serial.println(millis());
   state = READ_UART;
   pulse_count = 0;
+  bit_count = 0;
 }
 
 void count_pulse() {
@@ -539,21 +541,23 @@ void loop() { // run over and over
     disableAll();
   }
 
-  if (state = READ_UART) {
+  if (state == READ_UART) {
     if (bit_count == 0) {
       delay(10);
     }
 
-    if (bit_count) {
+    if (bit_count < 16) {
       delay(20);
-      int read = digitalRead(pulse_pin);
-      pulse_count = (pulse_count << 1) + read;
-      Serial.print(read);
+      int readPin = digitalRead(pulse_pin);
+      pulse_count = (pulse_count << 1) + readPin;
+      Serial.println(millis());
+      Serial.println(readPin);
       bit_count++;
     }
 
-    if (bit_count == 8) {
+    if (bit_count == 16) {
       Serial.println(pulse_count);
+      state = WAIT_FOR_READ;
     }
   }
   
