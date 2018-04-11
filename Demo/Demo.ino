@@ -5,7 +5,7 @@ long motor_start = 0;
 int last_interrupt_time = 0;
 
 // Serial variables
-SoftwareSerial mySerial(8, 9); // RX, TX
+//SoftwareSerial Serial3(52, 53); // RX, TX
 int lastByte = 0;
 // Serial state variables
 int COMMAND_FULL_CYCLE = 1;
@@ -425,11 +425,12 @@ void setup() {
     ; 
   }
 
-  mySerial.begin(9600);
-  Serial.println(mySerial.available());
+  Serial3.begin(9600);
+  Serial.println(Serial3.available());
 
   Serial.println("Setup Complete!");
 
+<<<<<<< HEAD
  //interpretByte(1);
  //runGrinder();
  //goToWork();
@@ -437,6 +438,13 @@ void setup() {
  //runPump();
  // waitForRead();
 
+=======
+  //interpretByte(1);
+  //runGrinder();
+  //goToWork();
+  //goToHome();
+  //runPump();
+>>>>>>> 174b20d03d8eb9d3c94a64d5bd390ed81d47e1cf
 }
 
 void loop() { // run over and over
@@ -496,12 +504,20 @@ void loop() { // run over and over
     state = WAIT_FOR_READ;
     next_state = WAIT_FOR_READ;
   }
+
+  if(Serial.available()) {
+    int Sread = Serial.read();
+    Serial3.write(Sread);
+    Serial.print("write:");
+    Serial.println(Sread);
+  }
   
-  if (state == WAIT_FOR_READ && mySerial.available()) {
-    int incomingByte = mySerial.read();
-    Serial.print("Read byte is: ");
+  //if (state == WAIT_FOR_READ && Serial3.available()) {
+  if(Serial3.available()) {
+    int incomingByte = Serial3.read();
+    Serial.print("READ");
     Serial.println(incomingByte, DEC);
-    interpretByte(incomingByte);
+   // interpretByte(incomingByte);
   } 
   /*else if (state == PUMP) {
     state = PUMP;
@@ -518,7 +534,8 @@ void loop() { // run over and over
     }
   ************************/
 
-  if (mySerial.available() && mySerial.read() == 100) {
+
+  if (Serial3.available() && Serial3.read() == 100) {
     disableAll();
   }
   
