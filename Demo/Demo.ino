@@ -18,6 +18,7 @@ int COMMAND_PUMP = 5;
 int pulse_pin = 20;
 int start_stop_pin = 21;
 
+int bit_count = 0;
 int pulse_count = 0;
 bool pulse_started = false;
 
@@ -69,6 +70,7 @@ int BU_WORK = 6;
 int BU_HOME = 7;
 int HEATING = 8;
 int DISPOSE = 9;
+int READ_UART = 10;
 
 // Grinder and Flowmeter interrupt limits
 int grinderLimit = 150;
@@ -375,21 +377,10 @@ void start_stop_pulse() {
 }
 
 void start_uart() {
-  Serial.println("STARTING UART");
   detachInterrupt(digitalPinToInterrupt(pulse_pin));
+  Serial.println("STARTING UART");
+  state = READ_UART;
   pulse_count = 0;
-  delay(10);
-
-  int i = 0;
-  for (i = 0; i < 8; i++) {
-    delay(20);
-    int read = digitalRead(pulse_pin);
-    pulse_count = (pulse_count << 1) + read;
-    Serial.print(read);
-  }
-  Serial.println("")
-  Serial.println(pulse_count);
-
 }
 
 void count_pulse() {
@@ -448,21 +439,12 @@ void setup() {
 
   Serial.println("Setup Complete!");
 
-<<<<<<< HEAD
  //interpretByte(1);
  //runGrinder();
  //goToWork();
  //goToHome();
  //runPump();
- // waitForRead();
-
-=======
-  //interpretByte(1);
-  //runGrinder();
-  //goToWork();
-  //goToHome();
-  //runPump();
->>>>>>> 174b20d03d8eb9d3c94a64d5bd390ed81d47e1cf
+  waitForRead();
 }
 
 void loop() { // run over and over
@@ -555,6 +537,24 @@ void loop() { // run over and over
 
   if (Serial3.available() && Serial3.read() == 100) {
     disableAll();
+  }
+
+  if (state = READ_UART) {
+    if (bit_count == 0) {
+      delay(10);
+    }
+
+    if (bit_count) {
+      delay(20);
+      int read = digitalRead(pulse_pin);
+      pulse_count = (pulse_count << 1) + read;
+      Serial.print(read);
+      bit_count++;
+    }
+
+    if (bit_count == 8) {
+      Serial.println(pulse_count);
+    }
   }
   
   
