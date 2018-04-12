@@ -56,7 +56,7 @@ float temp;
 bool preheating = false;
 bool heating = false;
 int lower_limit = 85;
-int upper_limit = 88;
+int upper_limit = lower_limit + 5;
 int boiler_flow_count = 0;
 
 //state variables
@@ -75,6 +75,9 @@ int WAIT_FOR_SIZE = 11;
 int WAIT_FOR_TEMP = 12;
 
 // brew variables
+int ESPRESSO = 1;
+int AMERICANO = 2;
+
 int desiredType;
 int desiredSize;
 int desiredTemp;
@@ -129,18 +132,18 @@ void runBoiler_preheat() {
   Serial.println("runBoiler_preheat");
 }
 
-void runBoiler_maintain() {
-  if (temp < 80  && flowCount % 2 == 0) {
-    digitalWrite(boilerEnable, HIGH);
-    //delayMicroseconds(6500);
-    delayMicroseconds(16000);
-    digitalWrite(boilerEnable, LOW);
-    Serial.println("runBoiler_maintain");
-  }
-  else if (flowCount % 1 == 1) {
-    disableBoiler_afterCycle();
-  }
-}
+//void runBoiler_maintain() {
+//  if (temp < 80  && flowCount % 2 == 0) {
+//    digitalWrite(boilerEnable, HIGH);
+//    //delayMicroseconds(6500);
+//    delayMicroseconds(16000);
+//    digitalWrite(boilerEnable, LOW);
+//    Serial.println("runBoiler_maintain");
+//  }
+//  else if (flowCount % 1 == 1) {
+//    disableBoiler_afterCycle();
+//  }
+//}
 
 void runGrinder() {
   Serial.print("State is: ");
@@ -165,6 +168,7 @@ void grinderChange() {
     for (int i =0; i<200; i++) {
       Serial.println(i);
     }
+    //sendInterrupt();
     goToWork();
   }
 }
@@ -203,25 +207,27 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
           next_state = GO_HOME;
           runPump();
         }
-//        else if (next_state == GO_HOME) {
-//          state = GO_HOME;
-//          next_state = WAIT_FOR_READ;
-//          goToHome();
-//        }
+        else if (next_state == PUMP) {
+          state = PUMP;
+          next_state = GO_HOME;
+          runPump();
+        }
         
       } else if (state == GO_HOME) {
+        Serial.print("NEXT STATE: ");
+        Serial.println(next_state);
         if (next_state == WAIT_FOR_READ) {
           bu_state = BU_HOME;
           state = WAIT_FOR_READ;
           next_state = -1;
-          onBrewFinish();
+          sendInterrupt();
         }
-//        else if (next_state == GO_WORK) {
-//          bu_state = BU_HOME;
-//          state = GO_WORK;
-//          next_state = GO_HOME;
-//          goToWork();
-//        }
+        else if (next_state == GO_WORK) {
+          bu_state = BU_HOME;
+          state = GO_WORK;
+          next_state = PUMP;
+          goToWork();
+        }
       }
   }
 }
@@ -258,6 +264,9 @@ void flowChange() {
   Serial.println(heating);
   Serial.println(digitalRead(boilerRead));
 
+  
+  Serial.println(upper_limit);
+
   //if (digitalRead(boilerRead) == LOW) {
   //  runBoiler_maintain();
   //}
@@ -266,12 +275,12 @@ void flowChange() {
 //    runBoiler_maintain();
 //    }
 
-  if (state == 4 && next_state == 5) {
+  if (state == PUMP && next_state == GO_HOME) {
     if (temp >= upper_limit) {
       disableBoiler();
     }
     
-    if (boilerEnable == HIGH) {
+    if (digitalRead(boilerEnable) == HIGH) {
       digitalWrite(boilerEnable, LOW);
     }
     else {
@@ -289,14 +298,23 @@ void flowChange() {
       Serial.println(k);
     }
     state = GO_HOME;
-    next_state = WAIT_FOR_READ;
+    Serial.print("Desired Type: ");
+    Serial.println(desiredType);
+    if (desiredType == ESPRESSO) {
+      next_state = WAIT_FOR_READ;
+    } else if (desiredType == AMERICANO) {
+      Serial.println("------------------------------------------------------- else if");
+      next_state = GO_WORK;
+      desiredType = ESPRESSO; // Sends it to just go back
+      flowLimit = 200 + ((desiredType-1) * 100);
+    }
     goToHome();
+    //sendInterrupt();
   }
 }
 
 void goToHome() {
   state = GO_HOME;
-  next_state = WAIT_FOR_READ;
   //delay(2000);
   Serial.print("goToHome: state is: ");
   Serial.println(state);
@@ -347,9 +365,12 @@ void interpretByte(int lastByte) {
   } else if (state == WAIT_FOR_SIZE) {
     desiredSize = lastByte;
     state = WAIT_FOR_TEMP;
+    flowLimit = 100 + (desiredSize - 1)*100;
     return;
   } else if (state == WAIT_FOR_TEMP) {
     desiredTemp = 79 + lastByte;
+    lower_limit = desiredTemp;
+    upper_limit = lower_limit + 5;
 
     Serial.print("Desired Type: ");
     Serial.println(desiredType);
@@ -401,6 +422,7 @@ void interpretByte(int lastByte) {
   else if (lastByte == COMMAND_PUMP) {
     //state = PUMP;
     //next_state = WAIT_FOR_READ;
+    flowLimit = 2000;
     runPump();
   }
 
@@ -433,13 +455,22 @@ void doneReading() {
   }
 }
 
-void onBrewFinish() {
+void sendInterrupt() {
+  Serial.println("SENDING INTERRUPT");
+  Serial.print("CURRENT OUTPUT: ");
+  Serial.println(digitalRead(pulse_pin));
   pinMode(pulse_pin, OUTPUT);
   digitalWrite(pulse_pin, LOW);
   delay(2);
+  Serial.print("CURRENT OUTPUT: ");
+  Serial.println(digitalRead(pulse_pin));
   digitalWrite(pulse_pin, HIGH);
-  delay(5);
+  delay(10);
+  Serial.print("CURRENT OUTPUT: ");
+  Serial.println(digitalRead(pulse_pin));
   digitalWrite(pulse_pin, LOW);
+  Serial.print("CURRENT OUTPUT: ");
+  Serial.println(digitalRead(pulse_pin));
 }
 
 void waitForRead() {
@@ -511,12 +542,14 @@ void loop() { // run over and over
     if (preheating) {
       if (digitalRead(boilerRead) == LOW) {
         runBoiler_preheat();
-        if (temp >= lower_limit) {
+        if (temp >= 0) {
+//        if (temp >= lower_limit) {
           preheating = false;
           disableBoiler_afterCycle();
           state = GRIND;
           next_state = GO_WORK;
           runGrinder();
+          //sendInterrupt();
         }
       }
     }  
@@ -530,7 +563,7 @@ void loop() { // run over and over
 //    }
   
     if (temp >= upper_limit) {
-      disableBoiler;
+      disableBoiler();
     }
     
     //delay(5);
