@@ -193,6 +193,7 @@ void goToWork_Manual() {
 }
 
 void disableMotorAfterOneCycle() { // added debouncing code since we're bypassing the Schmidt Trigger
+  Serial.println("disableMotorAfterOneCycle");
   unsigned long interrupt_time = millis();
   if (interrupt_time - motor_start > wait_delay) {
       disableMotor();
@@ -275,11 +276,9 @@ void flowChange() {
 //    runBoiler_maintain();
 //    }
 
-  if (state == PUMP && next_state == GO_HOME) {
-    if (temp >= upper_limit) {
-      disableBoiler();
-    }
-    
+  if (temp >= upper_limit || flowCount >= (flowLimit*0.8)) {
+    disableBoiler();
+  } else {
     if (digitalRead(boilerEnable) == HIGH) {
       digitalWrite(boilerEnable, LOW);
     }
@@ -290,6 +289,8 @@ void flowChange() {
       }
     }
   }
+  
+  
 
   if (flowCount >= flowLimit) {
     digitalWrite(pumpEnable, LOW);
@@ -438,8 +439,6 @@ void start_stop_pulse() {
 
 void count_pulse() {
   pulse_count++;
-//  Serial.print("C: ");
-//  Serial.println(pulse_count);
 }
 
 void doneReading() {
@@ -494,7 +493,7 @@ void setup() {
   pinMode(boilerRead, INPUT);
   pinMode(start_stop_pin, INPUT);
 
-  attachInterrupt(digitalPinToInterrupt(interrupt_pin), disableMotorAfterOneCycle, FALLING);
+  attachInterrupt(digitalPinToInterrupt(interrupt_pin), disableMotorAfterOneCycle, RISING);
   attachInterrupt(digitalPinToInterrupt(hallPin), grinderChange, FALLING);
   attachInterrupt(digitalPinToInterrupt(flowPin), flowChange, FALLING);
   attachInterrupt(digitalPinToInterrupt(disablePin), disableAll, FALLING);
@@ -506,9 +505,6 @@ void setup() {
   while (!Serial) {
     ; 
   }
-
-  Serial3.begin(9600);
-  Serial.println(Serial3.available());
 
   Serial.println("Setup Complete!");
 
@@ -542,8 +538,8 @@ void loop() { // run over and over
     if (preheating) {
       if (digitalRead(boilerRead) == LOW) {
         runBoiler_preheat();
-        if (temp >= 0) {
-//        if (temp >= lower_limit) {
+//        if (temp >= 0) {
+        if (temp >= lower_limit) {
           preheating = false;
           disableBoiler_afterCycle();
           state = GRIND;
@@ -579,21 +575,7 @@ void loop() { // run over and over
     state = WAIT_FOR_READ;
     next_state = WAIT_FOR_READ;
   }
-
-  if(Serial.available()) {
-    int Sread = Serial.read();
-    Serial3.write(Sread);
-    Serial.print("write:");
-    Serial.println(Sread);
-  }
-  
-  //if (state == WAIT_FOR_READ && Serial3.available()) {
-  if(Serial3.available()) {
-    int incomingByte = Serial3.read();
-    Serial.print("READ");
-    Serial.println(incomingByte, DEC);
-   // interpretByte(incomingByte);
-  } 
+  // if (state == WAIT_FOR_READ && Serial3.available()) {
   /*else if (state == PUMP) {
     state = PUMP;
     delay(3000);
@@ -608,12 +590,6 @@ void loop() { // run over and over
       startPump();
     }
   ************************/
-
-
-  if (Serial3.available() && Serial3.read() == 100) {
-    disableAll();
-  }
-  
   
   /*
   switch (state) {
