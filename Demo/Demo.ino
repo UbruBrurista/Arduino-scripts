@@ -105,7 +105,9 @@ void read_NTC() {
 
 void disableBoiler() {
   digitalWrite(boilerEnable, LOW);
-  Serial.println("disabling boiler");
+  if (state != WAIT_FOR_READ) {
+    //Serial.println("disabling boiler");
+  }
 }
 
 void disableBoiler_afterCycle() {
@@ -148,7 +150,7 @@ void runGrinder() {
   Serial.print("State is: ");
   Serial.println(state);
   Serial.println("grinding");
-  //preheating = false;
+  preheating = false;
   grinderCount = 0;
   state = GRIND;
   next_state = GO_WORK;
@@ -246,8 +248,8 @@ void runPump() {
 }
 
 void flowChange() {
-  Serial.print("State is: ");
-  Serial.println(state);
+//  Serial.print("State is: ");
+//  Serial.println(state);
   flowCount++;
   boiler_flow_count++;
   Serial.print("Flow count: ");
@@ -260,21 +262,23 @@ void flowChange() {
   Serial.print(upper_limit);
   Serial.print(",");
   Serial.println(temp);
-
-  Serial.println(heating);
-  Serial.println(digitalRead(boilerRead));
+//
+//  Serial.println(heating);
+//  Serial.println(digitalRead(boilerRead));
   
-  Serial.println(upper_limit);
+//  Serial.println(upper_limit);
   
 //  if (temp >= upper_limit || flowCount >= (flowLimit*0.8)) {
   if (temp >= upper_limit) {
     disableBoiler();
-  } else {
+  } 
+  else {
     if (digitalRead(boilerEnable) == HIGH) {
       digitalWrite(boilerEnable, LOW);
     }
     else {
-      if (boiler_flow_count >= 1 && temp < upper_limit) {
+      //if (boiler_flow_count >= 2 && temp < upper_limit) {
+      if(boiler_flow_count >= 2){
         digitalWrite(boilerEnable, HIGH);
         boiler_flow_count = 0;
       }
@@ -491,9 +495,16 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(start_stop_pin), start_stop_pulse, RISING);
 
   disableAll();
+
+  Serial.begin(4800);
+  Serial.println("Setup Complete!");
 }
 
 void loop() { // run over and over
+
+  if (!preheating && !heating && state != PUMP) {
+    disableBoiler();
+  }
 
   if (preheating) {
     NTC_sensorVal = analogRead(NTC_sensorPin);
