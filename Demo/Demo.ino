@@ -30,8 +30,8 @@ int d_motor_pin = 12;
 int interrupt_pin = 18;
 
 // Other pins
-int grinderEnable = 6;
-int pumpEnable = 5;
+int grinderEnable = 6; // 48 on PCB
+int pumpEnable = 5; // 51 on PCB
 int boilerEnable = 4; // pin 2 on PCB
 int flowPin = 2;
 int hallPin = 3;
@@ -412,7 +412,7 @@ void setup() {
   pinMode(boilerRead, INPUT);
   pinMode(start_stop_pin, INPUT);
 
-  attachInterrupt(digitalPinToInterrupt(interrupt_pin), disableMotorAfterOneCycle, FALLING);
+  attachInterrupt(digitalPinToInterrupt(interrupt_pin), disableMotorAfterOneCycle, RISING); // changed to RISING b/c removed diodes
   attachInterrupt(digitalPinToInterrupt(hallPin), grinderChange, FALLING);
   attachInterrupt(digitalPinToInterrupt(flowPin), flowChange, FALLING);
   attachInterrupt(digitalPinToInterrupt(disablePin), disableAll, FALLING);

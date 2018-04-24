@@ -1,8 +1,6 @@
 #include <math.h>
 
-int disableButton = 3;
-int pumpButton = 0;
-int boilerButton = 7;
+int disableButton = 19;
 int boilerRead = 13;
 
 int pumpPin = 5;
@@ -10,12 +8,15 @@ int boilerPin = 4;
 
 int sensorPin = A0;
 float sensorVal;
-float R1 = 32400.0; //potentiometer value
-float R2; // actually 32.4k in our ckt
+float R1 = 32800.0;
+float R2; 
 float Vref = 5.0;
 float analogVolts;
 float e = 2.7182;
 float temp;
+
+float lower_temp = 40;
+float upper_temp = 45;
 
 bool preheating = false;
 bool heating = false;
@@ -72,21 +73,21 @@ void setup() {
 // put your setup code here, to run once:
   pinMode(sensorPin, INPUT);
   pinMode(disableButton, INPUT);
-  pinMode(pumpButton, INPUT);
-  pinMode(boilerButton, INPUT);
+  //pinMode(pumpButton, INPUT);
+  //pinMode(boilerButton, INPUT);
   pinMode(boilerRead, INPUT);
   pinMode(boilerPin, OUTPUT);
   pinMode(pumpPin, OUTPUT);
   digitalWrite(boilerPin, LOW);
   digitalWrite(pumpPin, LOW);
 
-  attachInterrupt(digitalPinToInterrupt(disableButton), disableAll, FALLING);
-  attachInterrupt(digitalPinToInterrupt(boilerButton), setPreheating, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pumpButton), runPump, FALLING);
+  attachInterrupt(digitalPinToInterrupt(disableButton), disableAll, RISING);
+  //attachInterrupt(digitalPinToInterrupt(boilerButton), setPreheating, FALLING);
+  //attachInterrupt(digitalPinToInterrupt(pumpButton), runPump, FALLING);
 
-  disableAll();
+  setPreheating();
 
-  Serial.begin(9600);
+  Serial.begin(4800);
 }
 
 void loop() {
@@ -101,16 +102,16 @@ void loop() {
 
   temp = get_temp(R2);
 
-  Serial.print(85);
+  Serial.print(40);
   Serial.print(",");
-  Serial.print(90);
+  Serial.print(45);
   Serial.print(",");
   Serial.println(temp);
 
   if (preheating) {
     if (digitalRead(boilerRead) == LOW) {
       runBoiler_preheat();
-      if (temp >= 85) {
+      if (temp >= 40) {
         preheating = false;
         heating = true;
       }
@@ -121,14 +122,14 @@ void loop() {
     if (digitalRead(boilerRead) == LOW) {
       runPump();
       runBoiler_maintain();
-      if (temp >= 90) {
+      if (temp >= 45) {
         disableBoiler();
       }
     }
     
   }
 
-  if (temp >= 90) {
+  if (temp >= 45) {
     disableBoiler();
   }
 
