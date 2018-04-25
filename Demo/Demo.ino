@@ -14,6 +14,7 @@ int COMMAND_GO_HOME = 3;
 int COMMAND_GO_WORK = 4;
 int COMMAND_GRIND = 5;
 int COMMAND_PUMP = 6;
+int COMMAND_CLEAN = 7;
 
 // Communication
 int pulse_pin = 20; // goes to 21 on Pi 
@@ -73,6 +74,8 @@ int DISPOSE = 9;
 int WAIT_FOR_TYPE = 10;
 int WAIT_FOR_SIZE = 11;
 int WAIT_FOR_TEMP = 12;
+int CLEAN = 13;
+int FINISH_CLEAN = 14;
 
 // brew variables
 int ESPRESSO = 1;
@@ -229,10 +232,10 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
           next_state = GO_HOME;
           runPump();
         }
-        else if (next_state == PUMP) {
-          state = PUMP;
-          next_state = GO_HOME;
-          runPump();
+        else if (next_state == CLEAN) {
+          state = CLEAN;
+          next_state = FINISH_CLEAN;
+          runPumpManual(); 
         }
         
       } else if (state == GO_HOME) {
@@ -257,12 +260,16 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
 void runPump() {
   state = PUMP;
   next_state = GO_HOME;
-  //delay(3000);
   Serial.print("runPump: state is: ");
   Serial.println(state);
   Serial.println("pumping");
   setHeating();
-  //heating = true;
+  flowCount = 0;
+  boiler_flow_count = 0;
+  digitalWrite(pumpEnable, HIGH);
+}
+
+void runPumpManual() {
   flowCount = 0;
   digitalWrite(pumpEnable, HIGH);
 }
@@ -279,7 +286,7 @@ void flowChange() {
   Serial.print(",");
   Serial.println(temp);
   
-  if (temp >= upper_limit || (flowCount >= flowLimit*0.9)) {
+  if (temp >= upper_limit || (state != CLEAN && flowCount >= flowLimit*0.9)) {
       disableBoiler();
   } else {
     if (digitalRead(boilerEnable) == HIGH && boiler_flow_count > 1) {
@@ -291,7 +298,7 @@ void flowChange() {
     }
   }
   
-  if (flowCount >= flowLimit) {
+  if (state != CLEAN && flowCount >= flowLimit) {
     digitalWrite(pumpEnable, LOW);
     disableBoiler_afterCycle();
     for (int k =0; k<100; k++) {
@@ -375,6 +382,12 @@ void interpretByte(int lastByte) {
     return;
   }
 
+  // Disable
+  if (lastByte == COMMAND_DISABLE_ALL) {
+    disableAll();
+    return;
+  }
+
   if (state != WAIT_FOR_READ) {
     return;
   }
@@ -383,37 +396,34 @@ void interpretByte(int lastByte) {
   if (lastByte == COMMAND_FULL_CYCLE) {
     state = WAIT_FOR_TYPE;
     return;
-//    state = PREHEATING;
-//    next_state = GRIND;
-//    preheating = true;
   }
   // Go to work
   else if (lastByte == COMMAND_GO_WORK) {
-    //state = GO_WORK;
-    //next_state = WAIT_FOR_READ;
     goToWork_Manual();
 
   }
   //Go to home
   else if (lastByte == COMMAND_GO_HOME) {
-    //state = GO_HOME;
-    //next_state = WAIT_FOR_READ;
     goToHome_Manual();
     
   }
   // Run grinder
   else if (lastByte == COMMAND_GRIND) {
-    //state = GRIND;
-    //next_state = WAIT_FOR_READ;
     runGrinder();
     
   }
   // Run pump
   else if (lastByte == COMMAND_PUMP) {
-    //state = PUMP;
-    //next_state = WAIT_FOR_READ;
     flowLimit = 2000;
     runPump();
+  }
+  // Clean
+  else if (lastByte == COMMAND_CLEAN) {
+    state = GO_WORK;
+    next_state = CLEAN;
+    lower_limit = 60;
+    upper_limit = 65;
+    goToWork_Manual();
   }
 
 }
@@ -474,12 +484,6 @@ void setup() {
 
   Serial.begin(4800);
   Serial.println("Setup Complete!");
-
-//  interpretByte(3);
-  interpretByte(2);
-  interpretByte(1);
-  interpretByte(2);
-  interpretByte(1);
 }
 
 void loop() { // run over and over
@@ -508,82 +512,42 @@ void loop() { // run over and over
     if (preheating) {
       if (digitalRead(boilerRead) == LOW) {
         runBoiler_preheat();
-//        if (temp >= 0) {
         if (temp >= lower_limit) {
           preheating = false;
           disableBoiler_afterCycle();
           state = GRIND;
           next_state = GO_WORK;
           runGrinder();
-          //sendInterrupt();
         }
       }
     }  
-//    else if (heating) {
-//      if (digitalRead(boilerRead) == LOW) {
-//        runBoiler_maintain();
-//        if (temp >= upper_limit) {
-//          disableBoiler();
-//        }
-//      }
-//    }
   
     if (temp >= upper_limit) {
       disableBoiler();
     }
-    
-    //delay(5);
-  }
-  
-  if(digitalRead(waterLevelPin) == LOW) {
-    //Serial.println("You have enough water");
   }
   
   if (digitalRead(waterLevelPin) == HIGH) {
-    Serial.println("Add Water");
-    disableAll();
-    state = WAIT_FOR_READ;
-    next_state = WAIT_FOR_READ;
-  }
-  // if (state == WAIT_FOR_READ && Serial3.available()) {
-  /*else if (state == PUMP) {
-    state = PUMP;
-    delay(3000);
-    runPump();
-  }
-  */
-  /************************
-  Add something like this when you get around to adding the pump or something: 
-    else if (state == PUMP) {
-      state = PUMP_IN_PROGRESS; // you'll have to define these variables and startPump;
-      next_state = START_BOILER:
-      startPump();
-    }
-  ************************/
+    if (state == CLEAN || state == FINISH_CLEAN) {
+      digitalWrite(pumpEnable, LOW);
+      disableBoiler();
+      while(digitalRead(waterLevelPin) == HIGH) {
+        
+      }
   
-  /*
-  switch (state) {
-    case 1:
-      delay(2000);
-      runGrinder();
-      break;
-    case 2:
-      delay(2000);
-      goToWork();
-      break;
-    case 3:
-      delay(2000);
-      goToHome();
-      break;
-    case 4:
-      delay(2000);
-      runPump();
-      break;
-    case 0:
-      break;
-    default:
-      break; 
+      if (state == CLEAN) {
+        state = FINISH_CLEAN;
+        runPumpManual();
+      } else if (state == FINISH_CLEAN) {
+        state = GO_HOME;
+        next_state = WAIT_FOR_READ;
+        goToHome_Manual();
+      }
+    } else {
+      Serial.println("Add Water");
+      disableAll();
+      state = WAIT_FOR_READ;
+      next_state = WAIT_FOR_READ;
+    }
   }
-  */
-
 }
