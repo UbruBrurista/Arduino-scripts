@@ -16,8 +16,8 @@ int COMMAND_GRIND = 5;
 int COMMAND_PUMP = 6;
 
 // Communication
-int pulse_pin = 20;
-int start_stop_pin = 21;
+int pulse_pin = 20; // goes to 21 on Pi 
+int start_stop_pin = 21; // goes to 20 on Pi
 
 int pulse_count = 0;
 bool pulse_started = false;
@@ -47,7 +47,7 @@ int grinderCount = 0;
 
 //heating variables
 float NTC_sensorVal;
-float R1 = 32400.0; //resistor value on PCB
+float R1 = 33000.0; //resistor value on PCB
 float R2; // NTC resistor value
 float Vref = 5.0; // voltage from PowerSupply PCB
 float analogVolts;
@@ -83,7 +83,7 @@ int desiredSize;
 int desiredTemp;
 
 // Grinder and Flowmeter interrupt limits
-int grinderLimit = 150;
+int grinderLimit = 145;
 int flowLimit = 200;
 
 int state = WAIT_FOR_READ;
@@ -158,18 +158,13 @@ void runGrinder() {
 }
 
 void grinderChange() {
-  Serial.print("State is: ");
-  Serial.println(state);
   grinderCount++;
-  Serial.print("Grinder count: ");
-  Serial.println(grinderCount);
 
   if (grinderCount >= grinderLimit) {
     digitalWrite(grinderEnable, LOW);
     for (int i =0; i<200; i++) {
       Serial.println(i);
     }
-    //sendInterrupt();
     goToWork();
   }
 }
@@ -191,6 +186,31 @@ void goToWork_Manual() {
   digitalWrite(d_motor_pin, LOW);
   digitalWrite(enable_pin, HIGH);
   motor_start = millis();
+}
+
+void disableMotor() {
+  Serial.println("disabling motor");
+  digitalWrite(enable_pin, LOW);
+  digitalWrite(c_motor_pin, LOW);
+  digitalWrite(d_motor_pin, LOW);
+}
+
+void sendInterrupt() {
+  Serial.println("SENDING INTERRUPT");
+  Serial.print("CURRENT OUTPUT: ");
+  Serial.println(digitalRead(pulse_pin));
+  pinMode(pulse_pin, OUTPUT);
+  digitalWrite(pulse_pin, LOW);
+  delay(2);
+  Serial.print("CURRENT OUTPUT: ");
+  Serial.println(digitalRead(pulse_pin));
+  digitalWrite(pulse_pin, HIGH);
+  delay(10);
+  Serial.print("CURRENT OUTPUT: ");
+  Serial.println(digitalRead(pulse_pin));
+  digitalWrite(pulse_pin, LOW);
+  Serial.print("CURRENT OUTPUT: ");
+  Serial.println(digitalRead(pulse_pin));
 }
 
 void disableMotorAfterOneCycle() { // added debouncing code since we're bypassing the Schmidt Trigger
@@ -248,12 +268,8 @@ void runPump() {
 }
 
 void flowChange() {
-//  Serial.print("State is: ");
-//  Serial.println(state);
   flowCount++;
   boiler_flow_count++;
-  Serial.print("Flow count: ");
-  Serial.println(flowCount);
 
   read_NTC();
 
@@ -262,31 +278,19 @@ void flowChange() {
   Serial.print(upper_limit);
   Serial.print(",");
   Serial.println(temp);
-//
-//  Serial.println(heating);
-//  Serial.println(digitalRead(boilerRead));
   
-//  Serial.println(upper_limit);
-  
-//  if (temp >= upper_limit || flowCount >= (flowLimit*0.8)) {
-  if (temp >= upper_limit) {
-    disableBoiler();
-  } 
-  else {
-    if (digitalRead(boilerEnable) == HIGH) {
+  if (temp >= upper_limit || (flowCount >= flowLimit*0.9)) {
+      disableBoiler();
+  } else {
+    if (digitalRead(boilerEnable) == HIGH && boiler_flow_count > 1) {
       digitalWrite(boilerEnable, LOW);
-    }
-    else {
-      //if (boiler_flow_count >= 2 && temp < upper_limit) {
-      if(boiler_flow_count >= 2){
-        digitalWrite(boilerEnable, HIGH);
-        boiler_flow_count = 0;
-      }
+      boiler_flow_count = 0;
+    } else if (boiler_flow_count >= 1){
+      digitalWrite(boilerEnable, HIGH);
+      boiler_flow_count = 0;
     }
   }
   
-  
-
   if (flowCount >= flowLimit) {
     digitalWrite(pumpEnable, LOW);
     disableBoiler_afterCycle();
@@ -294,12 +298,10 @@ void flowChange() {
       Serial.println(k);
     }
     state = GO_HOME;
-    Serial.print("Desired Type: ");
-    Serial.println(desiredType);
+
     if (desiredType == ESPRESSO) {
       next_state = WAIT_FOR_READ;
     } else if (desiredType == AMERICANO) {
-      Serial.println("------------------------------------------------------- else if");
       next_state = GO_WORK;
       desiredType = ESPRESSO; // Sends it to just go back
       flowLimit = 200 + ((desiredType-1) * 100);
@@ -327,14 +329,6 @@ void goToHome_Manual() {
   digitalWrite(enable_pin, HIGH);
   motor_start = millis();
 }
-
-void disableMotor() {
-  Serial.println("disabling motor");
-  digitalWrite(enable_pin, LOW);
-  digitalWrite(c_motor_pin, LOW);
-  digitalWrite(d_motor_pin, LOW);
-}
-
 void disableAll() {
   Serial.println("disabling all");
   digitalWrite(enable_pin, LOW);
@@ -449,24 +443,6 @@ void doneReading() {
   }
 }
 
-void sendInterrupt() {
-  Serial.println("SENDING INTERRUPT");
-  Serial.print("CURRENT OUTPUT: ");
-  Serial.println(digitalRead(pulse_pin));
-  pinMode(pulse_pin, OUTPUT);
-  digitalWrite(pulse_pin, LOW);
-  delay(2);
-  Serial.print("CURRENT OUTPUT: ");
-  Serial.println(digitalRead(pulse_pin));
-  digitalWrite(pulse_pin, HIGH);
-  delay(10);
-  Serial.print("CURRENT OUTPUT: ");
-  Serial.println(digitalRead(pulse_pin));
-  digitalWrite(pulse_pin, LOW);
-  Serial.print("CURRENT OUTPUT: ");
-  Serial.println(digitalRead(pulse_pin));
-}
-
 void waitForRead() {
   //Serial.println("waiting for read, pulse_count = ");
   pulse_started = true;
@@ -498,11 +474,17 @@ void setup() {
 
   Serial.begin(4800);
   Serial.println("Setup Complete!");
+
+//  interpretByte(3);
+  interpretByte(2);
+  interpretByte(1);
+  interpretByte(2);
+  interpretByte(1);
 }
 
 void loop() { // run over and over
 
-  if (!preheating && !heating && state != PUMP) {
+  if (!(preheating || (heating && state == PUMP))) {
     disableBoiler();
   }
 
