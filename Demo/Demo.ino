@@ -23,10 +23,16 @@ int start_stop_pin = 21; // goes to 20 on Pi
 int pulse_count = 0;
 bool pulse_started = false;
 
+//Side door
+int side_door_pin = 28;
+
 // Brew Unit Variables
 int enable_pin = 10;
 int c_motor_pin = 11;
 int d_motor_pin = 12;
+int current_sensing_pin = A1;
+int brew_unit_insert_pin = 26;
+float current_sense;
 
 // Interrupt Variables
 int interrupt_pin = 18;
@@ -48,7 +54,7 @@ int grinderCount = 0;
 
 //heating variables
 float NTC_sensorVal;
-float R1 = 33000.0; //resistor value on PCB
+float R1 = 39000.0; //resistor value on PCB
 float R2; // NTC resistor value
 float Vref = 5.0; // voltage from PowerSupply PCB
 float analogVolts;
@@ -103,7 +109,15 @@ void read_NTC() {
     NTC_sensorVal = analogRead(NTC_sensorPin);
     analogVolts = (float)NTC_sensorVal*Vref/1023.0;
     R2 = R1/((Vref/analogVolts) - 1);
-    temp = get_temp(R2);
+    temp = get_temp(R2); 
+}
+
+float test_NTC() {
+    NTC_sensorVal = analogRead(NTC_sensorPin);
+    analogVolts = (float)NTC_sensorVal*Vref/1023.0;
+    R2 = R1/((Vref/analogVolts) - 1);
+    temp = get_temp(R2); 
+    return temp;
 }
 
 void disableBoiler() {
@@ -314,7 +328,6 @@ void flowChange() {
       flowLimit = 200 + ((desiredType-1) * 100);
     }
     goToHome();
-    //sendInterrupt();
   }
 }
 
@@ -367,7 +380,8 @@ void interpretByte(int lastByte) {
   } else if (state == WAIT_FOR_TEMP) {
     desiredTemp = 79 + lastByte;
     lower_limit = desiredTemp;
-    upper_limit = lower_limit + 5;
+    upper_limit = lower_limit + 10;
+
 
     Serial.print("Desired Type: ");
     Serial.println(desiredType);
@@ -454,10 +468,8 @@ void doneReading() {
 }
 
 void waitForRead() {
-  //Serial.println("waiting for read, pulse_count = ");
   pulse_started = true;
   pulse_count = 0;
-  //Serial.println(pulse_count);
   pinMode(pulse_pin, INPUT);
   attachInterrupt(digitalPinToInterrupt(pulse_pin), count_pulse, RISING);
 }
@@ -473,6 +485,7 @@ void setup() {
   pinMode(waterLevelPin, INPUT);
   pinMode(boilerRead, INPUT);
   pinMode(start_stop_pin, INPUT);
+  pinMode(current_sensing_pin, INPUT);
 
   attachInterrupt(digitalPinToInterrupt(interrupt_pin), disableMotorAfterOneCycle, RISING); // changed to RISING b/c removed diodes
   attachInterrupt(digitalPinToInterrupt(hallPin), grinderChange, FALLING);
@@ -487,6 +500,13 @@ void setup() {
 }
 
 void loop() { // run over and over
+  
+  if (millis() >= motor_start+200 && (state == GO_WORK || state == GO_HOME)) {
+    current_sense = (float)analogRead(current_sensing_pin)*Vref/1023.0;
+    if (current_sense >= 0.60) {
+      disableMotor();
+    }
+  }  
 
   if (!(preheating || (heating && state == PUMP))) {
     disableBoiler();
@@ -496,8 +516,6 @@ void loop() { // run over and over
     NTC_sensorVal = analogRead(NTC_sensorPin);
   
     analogVolts = (float)NTC_sensorVal*Vref/1023.0;
-
-    //R1 = (R2*Vref/analogVolts) - R2;
 
     R2 = R1/((Vref/analogVolts) - 1);
 
@@ -512,7 +530,8 @@ void loop() { // run over and over
     if (preheating) {
       if (digitalRead(boilerRead) == LOW) {
         runBoiler_preheat();
-        if (temp >= lower_limit) {
+      if (temp >= lower_limit) {
+        //if (temp >= upper_limit) {
           preheating = false;
           disableBoiler_afterCycle();
           state = GRIND;
