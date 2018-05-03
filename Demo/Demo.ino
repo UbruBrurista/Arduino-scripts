@@ -15,7 +15,6 @@ int COMMAND_GO_WORK = 4;
 int COMMAND_GRIND = 5;
 int COMMAND_PUMP = 6;
 int COMMAND_CLEAN = 7;
-int COMMAND_FULL_CYCLE = 8;
 
 // Communication
 int pulse_pin = 20; // goes to 21 on Pi 
@@ -63,8 +62,9 @@ float e = 2.7182;
 float temp;
 bool preheating = false;
 bool heating = false;
-int lower_limit = 85;
-int upper_limit = lower_limit + 5;
+int lower_limit;
+int middle_limit;
+int upper_limit;
 int boiler_flow_count = 0;
 
 //state variables
@@ -305,11 +305,13 @@ void flowChange() {
 
   Serial.print(lower_limit);
   Serial.print(",");
+  Serial.print(middle_limit);
+  Serial.print(",");
   Serial.print(upper_limit);
   Serial.print(",");
   Serial.println(temp);
   
-  if (temp >= upper_limit || (state != CLEAN && flowCount >= flowLimit*0.9)) {
+  if (temp >= middle_limit || (state != CLEAN && flowCount >= flowLimit*0.9)) {
       disableBoiler();
   } else {
     if (digitalRead(boilerEnable) == HIGH && boiler_flow_count > 1) {
@@ -388,6 +390,7 @@ void interpretByte(int lastByte) {
   } else if (state == WAIT_FOR_TEMP) {
     desiredTemp = 79 + lastByte;
     lower_limit = desiredTemp;
+    middle_limit = lower_limit + 5;
     upper_limit = lower_limit + 10;
 
 
@@ -505,7 +508,7 @@ void loop() { // run over and over
   
   if (millis() >= motor_start+250 && (state == GO_HOME || state == GO_WORK)) {
     current_sense = (float)analogRead(current_sensing_pin)*Vref/1023.0;
-    if (current_sense >= 0.40) {
+    if (current_sense >= 0.70) {
       disableMotor();
     }
   }
