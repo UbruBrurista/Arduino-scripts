@@ -9,7 +9,8 @@ int last_interrupt_time = 0;
 int lastByte = 0;
 // Serial state variables
 int COMMAND_DISABLE_ALL = 1;
-int COMMAND_FULL_CYCLE = 2;
+//int COMMAND_FULL_CYCLE = 2;
+int COMMAND_FULL_CYCLE = 8;
 int COMMAND_GO_HOME = 3;
 int COMMAND_GO_WORK = 4;
 int COMMAND_GRIND = 5;
@@ -395,13 +396,7 @@ void interpretByte(int lastByte) {
     preheating = true;
     return;
   }
-
-  // Disable
-  if (lastByte == COMMAND_DISABLE_ALL) {
-    disableAll();
-    return;
-  }
-
+  
   if (state != WAIT_FOR_READ) {
     return;
   }
