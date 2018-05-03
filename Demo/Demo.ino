@@ -9,13 +9,13 @@ int last_interrupt_time = 0;
 int lastByte = 0;
 // Serial state variables
 int COMMAND_DISABLE_ALL = 1;
-//int COMMAND_FULL_CYCLE = 2;
 int COMMAND_FULL_CYCLE = 8;
 int COMMAND_GO_HOME = 3;
 int COMMAND_GO_WORK = 4;
 int COMMAND_GRIND = 5;
 int COMMAND_PUMP = 6;
 int COMMAND_CLEAN = 7;
+int COMMAND_FULL_CYCLE = 8;
 
 // Communication
 int pulse_pin = 20; // goes to 21 on Pi 
@@ -36,7 +36,7 @@ int brew_unit_insert_pin = 26;
 float current_sense;
 
 // Interrupt Variables
-int interrupt_pin = 18;
+int brew_unit_work_home_pin = 18;
 
 // Other pins
 int grinderEnable = 6; // 48 on PCB
@@ -83,6 +83,8 @@ int WAIT_FOR_SIZE = 11;
 int WAIT_FOR_TEMP = 12;
 int CLEAN = 13;
 int FINISH_CLEAN = 14;
+int GO_WORK_MANUAL = 15;
+int GO_HOME_MANUAL = 16;
 
 // brew variables
 int ESPRESSO = 1;
@@ -231,7 +233,7 @@ void sendInterrupt() {
   Serial.println(digitalRead(pulse_pin));
 }
 
-void disableMotorAfterOneCycle() { // added debouncing code since we're bypassing the Schmidt Trigger
+void disableMotorAfterOneCycle() {
   Serial.println("disableMotorAfterOneCycle");
   unsigned long interrupt_time = millis();
   if (interrupt_time - motor_start > wait_delay) {
@@ -269,6 +271,12 @@ void disableMotorAfterOneCycle() { // added debouncing code since we're bypassin
           goToWork();
         }
       }
+//      } else if (state == GO_WORK_MANUAL || state == GO_HOME_MANUAL) {
+//          state = WAIT_FOR_READ;
+//          next_state = -1;
+//          disableMotor();
+//      }
+      
   }
 }
 
@@ -334,7 +342,6 @@ void flowChange() {
 
 void goToHome() {
   state = GO_HOME;
-  //delay(2000);
   Serial.print("goToHome: state is: ");
   Serial.println(state);
   Serial.println("going home");
@@ -476,13 +483,13 @@ void setup() {
   pinMode(grinderEnable, OUTPUT);
   pinMode(pumpEnable, OUTPUT);
   pinMode(boilerEnable, OUTPUT);
-  pinMode(interrupt_pin, INPUT);
+  pinMode(brew_unit_work_home_pin, INPUT);
   pinMode(waterLevelPin, INPUT);
   pinMode(boilerRead, INPUT);
   pinMode(start_stop_pin, INPUT);
   pinMode(current_sensing_pin, INPUT);
 
-  attachInterrupt(digitalPinToInterrupt(interrupt_pin), disableMotorAfterOneCycle, RISING); // changed to RISING b/c removed diodes
+  attachInterrupt(digitalPinToInterrupt(brew_unit_work_home_pin), disableMotorAfterOneCycle, RISING); // changed to RISING b/c removed diodes
   attachInterrupt(digitalPinToInterrupt(hallPin), grinderChange, FALLING);
   attachInterrupt(digitalPinToInterrupt(flowPin), flowChange, FALLING);
   attachInterrupt(digitalPinToInterrupt(disablePin), disableAll, FALLING);
@@ -496,12 +503,22 @@ void setup() {
 
 void loop() { // run over and over
   
-  if (millis() >= motor_start+200 && (state == GO_WORK || state == GO_HOME)) {
+  if (millis() >= motor_start+250 && (state == GO_HOME || state == GO_WORK)) {
     current_sense = (float)analogRead(current_sensing_pin)*Vref/1023.0;
-    if (current_sense >= 0.60) {
+    if (current_sense >= 0.40) {
       disableMotor();
     }
-  }  
+  }
+//
+//  NTC_sensorVal = analogRead(NTC_sensorPin);
+//  
+//  analogVolts = (float)NTC_sensorVal*Vref/1023.0;
+//    
+//  R2 = R1/((Vref/analogVolts) - 1);
+//
+//  temp = get_temp(R2);
+//
+//  Serial.println(temp);
 
   if (!(preheating || (heating && state == PUMP))) {
     disableBoiler();
